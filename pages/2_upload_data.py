@@ -9,9 +9,12 @@ import streamlit.components.v1 as components
 import json
 
 
+# Move checkbox to sidebar
+use_example_file = st.sidebar.checkbox("Use example file", False, help="Use in-built example file to demo the app")
+
+# Keep file upload in main area
 st.header("Data Upload and Clustering")
 uploaded_file = st.file_uploader("Upload CSV or Excel file", type=["csv", "xlsx"])
-use_example_file = st.checkbox("Use example file", False, help="Use in-built example file to demo the app")
 
 # Add download button for example file
 example_path = "./dataset/dataset_emission_province_in_indonesia.xlsx"
@@ -98,7 +101,7 @@ def perform_clustering(df, columns_for_model):
     with st.expander("Show Silhouette Score Visualization"):
         fig, ax = plt.subplots()
         ax.plot(range(2, max_clusters + 1), silhouette_scores)
-        ax.set_title('Silhouette Score Method')
+        ax.set_title('Silhouette Score Evaluation')
         ax.set_xlabel('Number of clusters')
         ax.set_ylabel('Silhouette Score')
         st.pyplot(fig)
@@ -107,7 +110,7 @@ def perform_clustering(df, columns_for_model):
     for cluster, score in top_3_scores:
         st.write(f"#### Cluster {cluster} with Score: {score:.4f}")
     
-    num_clusters = st.slider("Decide on the final number of clusters", 2, 10, optimal_clusters)
+    num_clusters = st.sidebar.slider("Decide on the final number of clusters", 2, 10, optimal_clusters)
     kmeansmodel = KMeans(n_clusters=num_clusters, random_state=101)
     y_kmeans = kmeansmodel.fit_predict(X)
     
@@ -115,13 +118,13 @@ def perform_clustering(df, columns_for_model):
     df['Cluster'] = y_kmeans + 1  # Adding 1 to make clusters 1-based instead of 0-based
     
     # Add a section for the map
-    st.header("Province Map Visualization")
+    st.header("Indonesia Province Map Visualization")
     
     # Add Gg explanation
     st.info("""
         **Note on units:** Values are shown in Gg (Gigagram)
         - 1 Gg = 1,000,000,000 grams (1 billion grams)
-        - This unit is commonly used for reporting greenhouse gas emissions
+        - This unit is commonly used for reporting greenhouse gas emissions in Indonesia
     """)
     
     if df is not None and selected_sheets and columns_for_model:
@@ -212,10 +215,7 @@ def display_province_map_2d(df=None, selected_columns=None):
         # Update tooltip to include cluster and handle many columns
         if len(selected_columns) > 5:
             visible_years = selected_columns[:5]
-            hidden_years = selected_columns[5:]
-            
             tooltip_visible = "\n".join([f"{year}: {{{year}}} Gg" for year in visible_years])
-            tooltip_hidden = "\n".join([f"{year}: {{{year}}} Gg" for year in hidden_years])
             
             tooltip_text = f"""[bold]{{name}}[/]
 Cluster: {{cluster}}
@@ -239,7 +239,7 @@ Cluster: {{cluster}}
             <style>
                 #chartdiv {
                     width: 100%;
-                    height: 500px;
+                    height: 800px;
                 }
                 .modal {
                     display: none;
@@ -421,7 +421,7 @@ Cluster: {{cluster}}
         '''
         
         # Display the map
-        components.html(map_html, height=600)
+        components.html(map_html, height=800)
 
         # Add legend in an expander
         with st.expander("Show Cluster Legend"):
@@ -453,9 +453,10 @@ if uploaded_file is not None:
         # Get list of sheet names
         sheet_names = list(df.keys())
         
-        # Allow user to select multiple sheets
-        selected_sheets = st.multiselect("Select sheets to preview", sheet_names)
-        
+        # Move sheet selection to sidebar
+        if df is not None:
+            selected_sheets = st.sidebar.multiselect("Select sheets to preview", sheet_names)
+
         if selected_sheets:
             for sheet in selected_sheets:
                 st.subheader(f"Preview of {sheet}")
@@ -473,7 +474,7 @@ if uploaded_file is not None:
 
             st.success("Data loaded and preprocessed successfully!")
         else:
-            st.info("Please select at least one sheet to preview.")
+            st.info("Please select at least one sheet to preview from side bar.")
         
     except Exception as e:
         st.error(f"Error: {e}")
@@ -484,20 +485,23 @@ else:
 if df is not None and selected_sheets:
     st.header("K-Means Clustering")
 
+    # Keep tabs in main area
     df_selected_sheet_option = ui.tabs(options=selected_sheets, default_value=selected_sheets[0])
     df_selected_sheet = df[df_selected_sheet_option]
 
     numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
     num_cols = list(df_selected_sheet.select_dtypes(include=numerics).columns)
-    include_all_year = st.checkbox("All Year ?", value=False)
-    
+
+    # Move year selection checkbox and multiselect to sidebar
+    include_all_year = st.sidebar.checkbox("Use all years ?", value=False)
+
     if include_all_year:
-        columns_for_model = sorted(num_cols)  # Sort all numeric columns
+        columns_for_model = sorted(num_cols)
     else:
-        columns_for_model = st.multiselect("Select 2 dimensions for clustering", sorted(num_cols))  # Sort options in multiselect
+        columns_for_model = st.sidebar.multiselect("Select at least 2 dimensions for clustering", sorted(num_cols))
 
     if len(columns_for_model) == 1:
-        st.write("Please choose at least one more variable")
+        st.write("Please choose at least one more dimension")
     elif len(columns_for_model) >= 2:
         perform_clustering(df_selected_sheet, columns_for_model)
 

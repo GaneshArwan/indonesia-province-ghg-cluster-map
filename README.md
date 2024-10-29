@@ -1,6 +1,6 @@
 # Exploring K-Means Clustering in Scikit-learn with Streamlit
 
-Try the app here: [K-Means Clustering for Indonesian GHG Emissions](your-streamlit-link-here)
+Try the app here: [K-Means Clustering for Indonesian GHG Emissions](https://indonesia-province-ghg-cluster-map.streamlit.app/upload-data-page)
 
 ![page preview](./miscellaneous/indonesia_map.png)
 

@@ -17,12 +17,12 @@ This application was developed as part of my final project for my college degree
 
 ## Data Privacy
 
-Your data security is important. All uploaded datasets are processed in-memory and are not stored on our servers. The source code is available for review on [GitHub](https://github.com/vuxvix/indonesia-province-ghg-cluster-map).
+Your data security is important. All uploaded datasets are processed in-memory and are not stored on our servers. The source code is available for review on [GitHub](https://github.com/GaneshArwan/indonesia-province-ghg-cluster-map).
 
 ## Contact & Support
 
 I welcome your feedback to improve this application. For questions, suggestions, or issues:
-- Submit an issue on [GitHub](https://github.com/vuxvix/indonesia-province-ghg-cluster-map/issues)
+- Submit an issue on [GitHub](https://github.com/GaneshArwan/indonesia-province-ghg-cluster-map/issues)
 - Participate in GitHub discussions
 
 Thank you for using this application!
