@@ -1,0 +1,17 @@
+[[pages]]
+path = "pages/1_main_page.py"
+name = "Main Page"
+icon = "🗺️"
+url_path = "main-page"
+
+[[pages]]
+path = "pages/2_upload_data.py"
+name = "Upload Data"
+icon = "📤"
+url_path = "upload-data-page"
+
+[[pages]]
+path = "pages/3_about_me.py"
+name = "About Me"
+icon = "ℹ️"
+url_path = "about-me-page"

@@ -1,0 +1,9 @@
+streamlit
+streamlit-lottie
+st-pages
+pandas
+numpy
+scikit-learn
+matplotlib
+streamlit-shadcn-ui
+openpyxl
