@@ -2,7 +2,7 @@ import streamlit as st
 
 st.header('Cluster Analysis of Greenhouse Gas Emissions by Province in Indonesia')
 st.write("""
-This application is part of a thesis research that aims to analyze and group Indonesian provinces based on 
+This application is part of a final project that aims to analyze and group Indonesian provinces based on 
 their Greenhouse Gas (GHG) emission profiles using the K-Means Clustering method.
 
 Indonesia is the 6th largest GHG emitter in the world as of 2021, contributing 1.48 Gt CO₂ eq-. Through this 

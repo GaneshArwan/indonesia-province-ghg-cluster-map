@@ -1,19 +1,14 @@
 import streamlit as st
 
-st.header('About This Project')
+st.header('About Me')
 
 st.write("""
-# Indonesia Province GHG Clustering App
 
 This application was developed as part of my final project for my college degree. It helps visualize and analyze greenhouse gas (GHG) emissions across Indonesian provinces using K-means clustering to identify patterns and group provinces based on their emission levels.
 
-## Key Features
+## Data Source
 
-- Upload custom datasets or use the provided example dataset
-- Interactive data preview and preprocessing tools
-- K-means clustering to group provinces by emission levels with map visualization
-- Silhouette score analysis for optimal cluster determination
-- Detailed province-level emission data tooltips
+The example dataset used in this application is sourced from [SIGNSMART (Sistem Inventarisasi GRK Nasional)](https://signsmart.menlhk.go.id/v2.1/), Indonesia's National GHG Inventory System managed by the Ministry of Environment and Forestry. This platform provides official greenhouse gas emissions data across Indonesian provinces.
 
 ## Data Privacy
 

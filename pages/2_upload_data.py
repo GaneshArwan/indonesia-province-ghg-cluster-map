@@ -12,6 +12,16 @@ import json
 # Move checkbox to sidebar
 use_example_file = st.sidebar.checkbox("Use example file", False, help="Use in-built example file to demo the app")
 
+# Add notice before file upload
+st.info("""
+    **Before uploading your file, please ensure:**
+    - Your data is in csv or excel file format
+    - I provide a template file to download below
+    - Your data follows the template format
+    - Provinces id and name is not modified
+    - Values are in Gigagram (Gg) units because it's the unit used in Indonesia (but this just for the map visualization)
+""")
+
 # Keep file upload in main area
 st.header("Data Upload and Clustering")
 uploaded_file = st.file_uploader("Upload CSV or Excel file", type=["csv", "xlsx"])
@@ -493,7 +503,7 @@ if df is not None and selected_sheets:
     num_cols = list(df_selected_sheet.select_dtypes(include=numerics).columns)
 
     # Move year selection checkbox and multiselect to sidebar
-    include_all_year = st.sidebar.checkbox("Use all years ?", value=False)
+    include_all_year = st.sidebar.checkbox("Use all dimensions for clustering", value=False)
 
     if include_all_year:
         columns_for_model = sorted(num_cols)
