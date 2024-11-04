@@ -7,7 +7,11 @@ import matplotlib.pyplot as plt
 import streamlit_shadcn_ui as ui
 import streamlit.components.v1 as components
 import json
+import math
+from matplotlib.colors import ListedColormap
 
+# Add this line to define numeric types
+numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
 
 # Move checkbox to sidebar
 use_example_file = st.sidebar.checkbox("Use example file", False, help="Use in-built example file to demo the app")
@@ -15,19 +19,21 @@ use_example_file = st.sidebar.checkbox("Use example file", False, help="Use in-b
 # Add notice before file upload
 st.info("""
     **Before uploading your file, please ensure:**
-    - Your data is in csv or excel file format
+    - Your data is in excel file format
     - I provide a template file to download below
     - Your data follows the template format
     - Provinces id and name is not modified
-    - Values are in Gigagram (Gg) units because it's the unit used in Indonesia (but this just for the map visualization)
+    - Values are in Gigagram (Gg) units because it's the unit used in Indonesia
+    - Numbers should be written without dots for thousands (e.g., write 1000 not 1.000)
+    - Use comma or dot for decimal points if needed (e.g., 1000,5 or 1.000.5)
 """)
 
 # Keep file upload in main area
 st.header("Data Upload and Clustering")
-uploaded_file = st.file_uploader("Upload CSV or Excel file", type=["csv", "xlsx"])
+uploaded_file = st.file_uploader("Upload Excel file", type=["xlsx"])
 
 # Add download button for example file
-example_path = "./dataset/dataset_emission_province_in_indonesia.xlsx"
+example_path = "./dataset/dataset_emission_province_by_sectors_in_indonesia.xlsx"
 template_path = "./dataset/template.xlsx"
 with open(template_path, "rb") as file:
     st.download_button(
@@ -70,15 +76,7 @@ def preprocess_data(df):
     
     return df
 
-def display_data_preview(df):
-    st.markdown("### Data preview")
-    st.dataframe(df.head())
-    st.write(df.describe())
-    st.write(f"#### Our dataset has {df.shape[0]} rows and {df.shape[1]} columns.")
-    st.write(check_nunique_missing(df))
-
-def display_data_preprocessed(df):
-    st.markdown("### Data preprocessed")
+def display_data(df):
     st.dataframe(df.head())
     st.write(df.describe())
     st.write(f"#### Our dataset has {df.shape[0]} rows and {df.shape[1]} columns.")
@@ -116,9 +114,9 @@ def perform_clustering(df, columns_for_model):
         ax.set_ylabel('Silhouette Score')
         st.pyplot(fig)
     top_3_scores = sorted([(i+2, score) for i, score in enumerate(silhouette_scores)], key=lambda x: x[1], reverse=True)[:3]
-    st.write("### Top 3 cluster numbers and their silhouette scores:")
+    st.write("### Top 3 highest scoring province groupings (clusters / k):")
     for cluster, score in top_3_scores:
-        st.write(f"#### Cluster {cluster} with Score: {score:.4f}")
+        st.write(f"#### Group into {cluster} clusters (Score: {score:.4f} out of 1.0)")
     
     num_clusters = st.sidebar.slider("Decide on the final number of clusters", 2, 10, optimal_clusters)
     kmeansmodel = KMeans(n_clusters=num_clusters, random_state=101)
@@ -444,28 +442,137 @@ Cluster: {{cluster}}
                               f'<span>{cluster}</span></div>', 
                               unsafe_allow_html=True)
         st.success('Map loaded successfully!')
+
+def combine_sheet_data(df_dict, selected_sheets, numerics):
+    combined_df = pd.DataFrame()
+    
+    for sheet in selected_sheets:
+        sheet_df = df_dict[sheet]
+        # Keep province info from first two columns for the first sheet
+        if combined_df.empty:
+            combined_df = sheet_df.iloc[:, :2].copy()
+        
+        # Add numeric columns, summing if they already exist
+        numeric_cols = sheet_df.select_dtypes(include=numerics).columns
+        for col in numeric_cols:
+            if col in combined_df.columns:
+                combined_df[col] += sheet_df[col]
+            else:
+                combined_df[col] = sheet_df[col]
+    
+    return combined_df
+
+def display_cluster_bar_charts(df, years):
+    st.header("Cluster Analysis by Year")
+    st.write("""
+    The charts below show the distribution of emissions across provinces for each year, 
+    color-coded by their cluster assignments. This helps visualize how provinces in different 
+    clusters compare in terms of their emission levels over time.
+    """)
+    # Get the number of unique clusters
+    n_clusters = df['Cluster'].nunique()
+    
+    # Create colors for the number of clusters we have
+    # Using the same colors as in the map visualization
+    cluster_colors = {
+        1: '#FF9999',  # Light red
+        2: '#99FF99',  # Light green
+        3: '#9999FF',  # Light blue
+        4: '#FFFF99',  # Light yellow
+        5: '#FF99FF',  # Light purple
+        6: '#99FFFF',  # Light cyan
+        7: '#FFB366',  # Light orange
+        8: '#B366FF',  # Light violet
+        9: '#66FFB3',  # Light mint
+        10: '#FF66B3'  # Light pink
+    }
+    
+    # Create color list based on number of clusters
+    colors = [cluster_colors[i] for i in range(1, n_clusters + 1)]
+    cmap = ListedColormap(colors)
+
+    # Split years into groups of 8
+    years_per_group = 8
+    n_groups = math.ceil(len(years) / years_per_group)
+
+    # A4 size in inches (11.69 x 8.27)
+    a4_height_inch = 11.69
+    a4_width_inch = 8.27
+    margin_inch = 3 / 2.54
+
+    # Calculate available space for the plot
+    plot_width_inch = a4_width_inch - 2 * margin_inch
+    plot_height_inch = a4_height_inch - 2 * margin_inch
+
+    for group in range(n_groups):
+        start_year = group * years_per_group
+        end_year = min((group + 1) * years_per_group, len(years))
+        group_years = years[start_year:end_year]
+
+        n_years = len(group_years)
+        n_cols = 2  # Number of columns in the subplot grid
+        n_rows = math.ceil(n_years / n_cols)
+
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(plot_width_inch, plot_height_inch), dpi=300)
+        axes = axes.flatten()
+
+        for i, year in enumerate(group_years):
+            # Sort the data by cluster and then by emission value
+            sorted_data = df.sort_values(['Cluster', year])
+
+            # Create the bar chart
+            bars = axes[i].bar(range(len(sorted_data)), sorted_data[year], color=cmap(sorted_data['Cluster'] - 1))
+
+            # Customize the plot
+            axes[i].set_xlabel('Province', fontsize=6)
+            axes[i].set_ylabel('Emission Amount', fontsize=6)
+            axes[i].set_title(f'{year}', fontsize=6)
+            axes[i].set_xticks(range(len(sorted_data)))
+            axes[i].set_xticklabels(sorted_data['PROVINCE'], 
+                rotation=90, 
+                ha='center',  # Changed from 'right' to 'center'
+                va='top',
+                fontsize=4)
+            axes[i].tick_params(axis='y', labelsize=4)
+            axes[i].axhline(y=0, color='k', linestyle='-', linewidth=0.5)
+            plt.subplots_adjust(bottom=0.2)
+
+        # Remove unused subplots
+        for i in range(n_years, len(axes)):
+            fig.delaxes(axes[i])
+
+        # Add legend
+        handles = [plt.Rectangle((0,0),1,1, color=cmap(i)) for i in range(n_clusters)]
+        fig.legend(handles, [f'Cluster {i+1}' for i in range(n_clusters)],
+                  loc='upper center', bbox_to_anchor=(0.5, 0.98), ncol=min(n_clusters, 5), fontsize=5)
+
+        # Increase bottom margin and adjust spacing
+        plt.tight_layout()
+        plt.subplots_adjust(top=0.93, bottom=0.15, hspace=1, wspace=0.3)
+        
+        # Display in Streamlit
+        st.pyplot(fig)
+        plt.close()
+
 if uploaded_file is not None:
     try:
         # Check the filename and its extension
         if isinstance(uploaded_file, str):  # If it's the example file
-            if file_name.endswith('.xlsx'):
-                df = pd.read_excel(file_name, sheet_name=None)
-            elif file_name.endswith('.csv'):
-                df = pd.read_csv(file_name)
-                df = {file_name[:-4]: df}  # Remove the last four characters from the file name
+            if uploaded_file.endswith('.xlsx'):
+                df = pd.read_excel(uploaded_file, sheet_name=None)
         else:  # If it's an uploaded file
-            if file_name.endswith('.csv'):
-                df = pd.read_csv(uploaded_file)
-                df = {file_name[:-4]: df}  # Remove the last four characters from the file name
-            elif file_name.endswith('.xlsx'):
+            if uploaded_file.name.endswith('.xlsx'):
                 df = pd.read_excel(uploaded_file, sheet_name=None)
 
         # Get list of sheet names
         sheet_names = list(df.keys())
         
-        # Move sheet selection to sidebar
-        if df is not None:
-            selected_sheets = st.sidebar.multiselect("Select sheets to preview", sheet_names)
+        # Move sheet selection to sidebar with "Select All" checkbox
+        select_all_sheets = st.sidebar.checkbox("Select all sectors", False)
+        if select_all_sheets:
+            selected_sheets = sheet_names
+        else:
+            selected_sheets = st.sidebar.multiselect("Select sector(s) to preview", sheet_names)
 
         if selected_sheets:
             for sheet in selected_sheets:
@@ -473,18 +580,28 @@ if uploaded_file is not None:
                 
                 # Wrap data preview in an expander
                 with st.expander("Data Preview"):
-                    display_data_preview(df[sheet])
+                    st.markdown("### Data preview")
+                    display_data(df[sheet])
                 
                 # Apply preprocessing
                 df[sheet] = preprocess_data(df[sheet])
                 
                 # Wrap preprocessed data in an expander
                 with st.expander("Preprocessed Data"):
-                    display_data_preprocessed(df[sheet])
+                    st.markdown("### Data preprocessed")
+                    display_data(df[sheet])
 
+            # Combine data if more than one sheet is selected
+            if len(selected_sheets) > 1:
+                combined_df = combine_sheet_data(df, selected_sheets, numerics)
+                st.subheader(f"Preview of All Selected Sectors")
+                with st.expander("Data Preview and Preprocessed"):
+                    st.markdown("### Data preprocessed and combined")
+                    display_data(combined_df)
+            
             st.success("Data loaded and preprocessed successfully!")
         else:
-            st.info("Please select at least one sheet to preview from side bar.")
+            st.info("Please select at least one sector to preview from side bar.")
         
     except Exception as e:
         st.error(f"Error: {e}")
@@ -493,27 +610,47 @@ else:
 
 # Proceed with clustering only if df is not None and selected_sheets is not empty
 if df is not None and selected_sheets:
+    
     st.header("K-Means Clustering")
 
-    # Keep tabs in main area
-    df_selected_sheet_option = ui.tabs(options=selected_sheets, default_value=selected_sheets[0])
-    df_selected_sheet = df[df_selected_sheet_option]
+    if len(selected_sheets) > 1:
+        # Add "All sectors" to the tabs options
+        tab_options = selected_sheets + ["ALL SELECTED SECTORS"]
+    else:
+        tab_options = selected_sheets
 
-    numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
-    num_cols = list(df_selected_sheet.select_dtypes(include=numerics).columns)
+    df_selected_sheet_option = ui.tabs(options=tab_options, default_value=selected_sheets[0])
+
+    if df_selected_sheet_option == "ALL SELECTED SECTORS":
+        # Use combined dataframe
+        working_df = combined_df
+    else:
+        # Use selected sheet
+        working_df = df[df_selected_sheet_option]
+
+    # Get numeric columns for clustering
+    num_cols = list(working_df.select_dtypes(include=numerics).columns)
 
     # Move year selection checkbox and multiselect to sidebar
-    include_all_year = st.sidebar.checkbox("Use all dimensions for clustering", value=False)
+    include_all_year = st.sidebar.checkbox("Use all years for clustering", value=False)
 
     if include_all_year:
         columns_for_model = sorted(num_cols)
     else:
-        columns_for_model = st.sidebar.multiselect("Select at least 2 dimensions for clustering", sorted(num_cols))
+        columns_for_model = st.sidebar.multiselect("Select at least two years for clustering", sorted(num_cols))
 
     if len(columns_for_model) == 1:
-        st.write("Please choose at least one more dimension")
+        st.write("Please choose at least one more year")
     elif len(columns_for_model) >= 2:
-        perform_clustering(df_selected_sheet, columns_for_model)
+        perform_clustering(working_df, columns_for_model)
+        # Only show bar charts after clustering is done and Cluster column exists
+        if 'Cluster' in working_df.columns:
+            display_cluster_bar_charts(working_df, columns_for_model)
+        else:
+            st.warning("Please perform clustering first before viewing the bar charts")
+
+
+
 
 
 
