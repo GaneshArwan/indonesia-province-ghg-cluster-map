@@ -5,10 +5,10 @@ icon = "🗺️"
 url_path = "main-page"
 
 [[pages]]
-path = "pages/2_upload_data.py"
-name = "Upload Data"
+path = "pages/2_upload_data_clustering.py"
+name = "Upload Data and Clustering"
 icon = "📤"
-url_path = "upload-data-page"
+url_path = "upload-data-clustering-page"
 
 [[pages]]
 path = "pages/3_about_me.py"

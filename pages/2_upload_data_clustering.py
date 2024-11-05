@@ -77,7 +77,7 @@ def preprocess_data(df):
     return df
 
 def display_data(df):
-    st.dataframe(df.head())
+    st.dataframe(df)
     st.write(df.describe())
     st.write(f"#### Our dataset has {df.shape[0]} rows and {df.shape[1]} columns.")
     st.write(check_nunique_missing(df))
@@ -113,6 +113,7 @@ def perform_clustering(df, columns_for_model):
         ax.set_xlabel('Number of clusters')
         ax.set_ylabel('Silhouette Score')
         st.pyplot(fig)
+    
     top_3_scores = sorted([(i+2, score) for i, score in enumerate(silhouette_scores)], key=lambda x: x[1], reverse=True)[:3]
     st.write("### Top 3 highest scoring province groupings (clusters / k):")
     for cluster, score in top_3_scores:
@@ -124,6 +125,11 @@ def perform_clustering(df, columns_for_model):
     
     # Add cluster labels to the dataframe
     df['Cluster'] = y_kmeans + 1  # Adding 1 to make clusters 1-based instead of 0-based
+    
+    # Add data preview with selected columns and cluster
+    with st.expander("Show Data of Province with Cluster"):
+        preview_df = df[['PROVINCE', 'Cluster']]  # Select Province and Cluster columns
+        st.dataframe(preview_df)
     
     # Add a section for the map
     st.header("Indonesia Province Map Visualization")
@@ -632,7 +638,7 @@ if df is not None and selected_sheets:
     num_cols = list(working_df.select_dtypes(include=numerics).columns)
 
     # Move year selection checkbox and multiselect to sidebar
-    include_all_year = st.sidebar.checkbox("Use all years for clustering", value=False)
+    include_all_year = st.sidebar.checkbox("Select all years for clustering", value=False)
 
     if include_all_year:
         columns_for_model = sorted(num_cols)
