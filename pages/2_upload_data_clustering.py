@@ -9,6 +9,7 @@ import streamlit.components.v1 as components
 import json
 import math
 from matplotlib.colors import ListedColormap
+import plotly.graph_objects as go
 
 # Add this line to define numeric types
 numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
@@ -19,13 +20,13 @@ use_example_file = st.sidebar.checkbox("Use example file", False, help="Use in-b
 # Add notice before file upload
 st.info("""
     **Before uploading your file, please ensure:**
-    - Your data is in excel file format
-    - I provide a template file to download below
-    - Your data follows the template format
-    - Provinces id and name is not modified
-    - Values are in Gigagram (Gg) units because it's the unit used in Indonesia
-    - Numbers should be written without dots for thousands (e.g., write 1000 not 1.000)
-    - Use comma or dot for decimal points if needed (e.g., 1000,5 or 1.000.5)
+    1. The data must be in **xlsx** file format.
+    2. Download the **template** file provided below.
+    3. Data must follow the template format.
+    4. Do not modify the **ID** and **province names**.
+    5. Values must be in **Gigagram (Gg)** units because it's the unit used in Indonesia.
+    6. Numbers must be written without dots for thousands (e.g., write 1000 not 1.000).
+    7. Must use a comma or dot for decimal points if needed (e.g., 1000,5 or 1.000.5).
 """)
 
 # Keep file upload in main area
@@ -107,17 +108,33 @@ def perform_clustering(df, columns_for_model):
     optimal_clusters = silhouette_scores.index(max(silhouette_scores)) + 2  # +2 because we start from 2 clusters
     
     with st.expander("Show Silhouette Score Visualization"):
-        fig, ax = plt.subplots()
-        ax.plot(range(2, max_clusters + 1), silhouette_scores)
-        ax.set_title('Silhouette Score Evaluation')
-        ax.set_xlabel('Number of clusters')
-        ax.set_ylabel('Silhouette Score')
-        st.pyplot(fig)
+        # Create Plotly figure
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=list(range(2, max_clusters + 1)),
+            y=silhouette_scores,
+            mode='lines+markers',
+            name='Silhouette Score',
+            hovertemplate='Clusters: %{x}<br>Score: %{y:.4f}<extra></extra>',
+            line=dict(color='#1f77b4', width=2),
+            marker=dict(size=8)
+        ))
+
+        # Update layout
+        fig.update_layout(
+            title='Silhouette Score Evaluation',
+            xaxis_title='Number of clusters',
+            yaxis_title='Silhouette Score',
+            hovermode='x unified',
+            template='plotly_white'
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
     
-    top_3_scores = sorted([(i+2, score) for i, score in enumerate(silhouette_scores)], key=lambda x: x[1], reverse=True)[:3]
-    st.write("### Top 3 highest scoring province groupings (clusters / k):")
-    for cluster, score in top_3_scores:
-        st.write(f"#### Group into {cluster} clusters (Score: {score:.4f} out of 1.0)")
+    all_scores = sorted([(i+2, score) for i, score in enumerate(silhouette_scores)], key=lambda x: x[1], reverse=True)
+    st.write("### Top 3 highest silhouette score province groupings:")
+    for cluster, score in all_scores[:3]:  # Only show top 3
+        st.write(f"#### Group into {cluster} clusters (Score: {score*100:.2f}%)")
     
     num_clusters = st.sidebar.slider("Decide on the final number of clusters", 2, 10, optimal_clusters)
     kmeansmodel = KMeans(n_clusters=num_clusters, random_state=101)
@@ -625,7 +642,28 @@ if df is not None and selected_sheets:
     else:
         tab_options = selected_sheets
 
-    df_selected_sheet_option = ui.tabs(options=tab_options, default_value=selected_sheets[0])
+    # Add container with custom CSS for mobile responsiveness
+    with st.container():
+        st.markdown("""
+            <style>
+                /* Make tabs container responsive */
+                .stTabs [data-baseweb="tab-list"] {
+                    flex-wrap: wrap;
+                }
+                .stTabs [data-baseweb="tab"] {
+                    white-space: normal;
+                    min-width: 100px;
+                    flex-grow: 1;
+                    text-align: center;
+                    padding: 10px 5px;
+                }
+            </style>
+            """, unsafe_allow_html=True)
+        
+        df_selected_sheet_option = ui.tabs(
+            options=tab_options, 
+            default_value=selected_sheets[0]
+        )
 
     if df_selected_sheet_option == "ALL SELECTED SECTORS":
         # Use combined dataframe
