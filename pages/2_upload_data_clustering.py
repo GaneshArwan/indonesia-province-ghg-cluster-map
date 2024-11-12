@@ -143,10 +143,11 @@ def perform_clustering(df, columns_for_model):
     # Add cluster labels to the dataframe
     df['Cluster'] = y_kmeans + 1  # Adding 1 to make clusters 1-based instead of 0-based
     
-    # Add data preview with selected columns and cluster
-    with st.expander("Show Data of Province with Cluster"):
-        preview_df = df[['PROVINCE', 'Cluster']]  # Select Province and Cluster columns
-        st.dataframe(preview_df)
+    # # Add data preview with selected columns and cluster
+    # with st.expander("Show Data of Province with Cluster"):
+    #     # preview_df = df[['PROVINCE', 'Cluster']]  # Select Province and Cluster columns
+    #     preview_df = df
+    #     st.dataframe(preview_df)
     
     # Add a section for the map
     st.header("Indonesia Province Map Visualization")
@@ -485,17 +486,102 @@ def combine_sheet_data(df_dict, selected_sheets, numerics):
     
     return combined_df
 
+# def display_cluster_bar_charts(df, years):
+#     st.header("Cluster Analysis by Year")
+#     st.write("""
+#     The charts below show the distribution of emissions across provinces for each year, 
+#     color-coded by their cluster assignments. This helps visualize how provinces in different 
+#     clusters compare in terms of their emission levels over time.
+#     """)
+#     # Get the number of unique clusters
+#     n_clusters = df['Cluster'].nunique()
+    
+#     # Create colors for the number of clusters we have
+#     # Using the same colors as in the map visualization
+#     cluster_colors = {
+#         1: '#FF9999',  # Light red
+#         2: '#99FF99',  # Light green
+#         3: '#9999FF',  # Light blue
+#         4: '#FFFF99',  # Light yellow
+#         5: '#FF99FF',  # Light purple
+#         6: '#99FFFF',  # Light cyan
+#         7: '#FFB366',  # Light orange
+#         8: '#B366FF',  # Light violet
+#         9: '#66FFB3',  # Light mint
+#         10: '#FF66B3'  # Light pink
+#     }
+    
+#     # Create color list based on number of clusters
+#     colors = [cluster_colors[i] for i in range(1, n_clusters + 1)]
+#     cmap = ListedColormap(colors)
+
+#     # Split years into groups of 8
+#     years_per_group = 8
+#     n_groups = math.ceil(len(years) / years_per_group)
+
+#     # A4 size in inches (11.69 x 8.27)
+#     a4_height_inch = 11.69
+#     a4_width_inch = 8.27
+#     margin_inch = 3 / 2.54
+
+#     # Calculate available space for the plot
+#     plot_width_inch = a4_width_inch - 2 * margin_inch
+#     plot_height_inch = a4_height_inch - 2 * margin_inch
+
+#     for group in range(n_groups):
+#         start_year = group * years_per_group
+#         end_year = min((group + 1) * years_per_group, len(years))
+#         group_years = years[start_year:end_year]
+
+#         n_years = len(group_years)
+#         n_cols = 2  # Number of columns in the subplot grid
+#         n_rows = math.ceil(n_years / n_cols)
+
+#         fig, axes = plt.subplots(n_rows, n_cols, figsize=(plot_width_inch, plot_height_inch), dpi=300)
+#         axes = axes.flatten()
+
+#         for i, year in enumerate(group_years):
+#             # Sort the data by cluster and then by emission value
+#             sorted_data = df.sort_values(['Cluster', year])
+
+#             # Create the bar chart
+#             bars = axes[i].bar(range(len(sorted_data)), sorted_data[year], color=cmap(sorted_data['Cluster'] - 1))
+
+#             # Customize the plot
+#             axes[i].set_xlabel('Province', fontsize=6)
+#             axes[i].set_ylabel('Emission Amount', fontsize=6)
+#             axes[i].set_title(f'{year}', fontsize=6)
+#             axes[i].set_xticks(range(len(sorted_data)))
+#             axes[i].set_xticklabels(sorted_data['PROVINCE'], 
+#                 rotation=90, 
+#                 ha='center',  # Changed from 'right' to 'center'
+#                 va='top',
+#                 fontsize=4)
+#             axes[i].tick_params(axis='y', labelsize=4)
+#             axes[i].axhline(y=0, color='k', linestyle='-', linewidth=0.5)
+#             plt.subplots_adjust(bottom=0.2)
+
+#         # Remove unused subplots
+#         for i in range(n_years, len(axes)):
+#             fig.delaxes(axes[i])
+
+#         # Add legend
+#         handles = [plt.Rectangle((0,0),1,1, color=cmap(i)) for i in range(n_clusters)]
+#         fig.legend(handles, [f'Cluster {i+1}' for i in range(n_clusters)],
+#                   loc='upper center', bbox_to_anchor=(0.5, 0.98), ncol=min(n_clusters, 5), fontsize=5)
+
+#         # Increase bottom margin and adjust spacing
+#         plt.tight_layout()
+#         plt.subplots_adjust(top=0.93, bottom=0.15, hspace=1, wspace=0.3)
+        
+#         # Display in Streamlit
+#         st.pyplot(fig)
+#         plt.close()
+
 def display_cluster_bar_charts(df, years):
-    st.header("Cluster Analysis by Year")
-    st.write("""
-    The charts below show the distribution of emissions across provinces for each year, 
-    color-coded by their cluster assignments. This helps visualize how provinces in different 
-    clusters compare in terms of their emission levels over time.
-    """)
     # Get the number of unique clusters
     n_clusters = df['Cluster'].nunique()
     
-    # Create colors for the number of clusters we have
     # Using the same colors as in the map visualization
     cluster_colors = {
         1: '#FF9999',  # Light red
@@ -514,68 +600,50 @@ def display_cluster_bar_charts(df, years):
     colors = [cluster_colors[i] for i in range(1, n_clusters + 1)]
     cmap = ListedColormap(colors)
 
-    # Split years into groups of 8
-    years_per_group = 8
-    n_groups = math.ceil(len(years) / years_per_group)
+    n_years = len(years)
+    n_cols = 2  # Number of columns in the subplot grid
+    n_rows = math.ceil(n_years / n_cols)
 
-    # A4 size in inches (11.69 x 8.27)
-    a4_height_inch = 11.69
-    a4_width_inch = 8.27
-    margin_inch = 3 / 2.54
+    # Create one large figure
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, 5*n_rows), dpi=300)
+    axes = axes.flatten()
 
-    # Calculate available space for the plot
-    plot_width_inch = a4_width_inch - 2 * margin_inch
-    plot_height_inch = a4_height_inch - 2 * margin_inch
+    for i, year in enumerate(years):
+        # Sort the data by cluster and then by emission value
+        sorted_data = df.sort_values(['Cluster', year])
 
-    for group in range(n_groups):
-        start_year = group * years_per_group
-        end_year = min((group + 1) * years_per_group, len(years))
-        group_years = years[start_year:end_year]
+        # Create the bar chart
+        bars = axes[i].bar(range(len(sorted_data)), sorted_data[year], color=cmap(sorted_data['Cluster'] - 1))
 
-        n_years = len(group_years)
-        n_cols = 2  # Number of columns in the subplot grid
-        n_rows = math.ceil(n_years / n_cols)
+        # Customize the plot
+        axes[i].set_xlabel('Province', fontsize=6)
+        axes[i].set_ylabel('Emission Amount', fontsize=6)
+        axes[i].set_title(f'{year}', fontsize=8)
+        axes[i].set_xticks(range(len(sorted_data)))
+        axes[i].set_xticklabels(sorted_data['PROVINCE'], 
+            rotation=90, 
+            ha='center',
+            va='top',
+            fontsize=4)
+        axes[i].tick_params(axis='y', labelsize=4)
+        axes[i].axhline(y=0, color='k', linestyle='-', linewidth=0.5)
 
-        fig, axes = plt.subplots(n_rows, n_cols, figsize=(plot_width_inch, plot_height_inch), dpi=300)
-        axes = axes.flatten()
+    # Remove unused subplots
+    for i in range(n_years, len(axes)):
+        fig.delaxes(axes[i])
 
-        for i, year in enumerate(group_years):
-            # Sort the data by cluster and then by emission value
-            sorted_data = df.sort_values(['Cluster', year])
+    # Add legend
+    handles = [plt.Rectangle((0,0),1,1, color=cmap(i)) for i in range(n_clusters)]
+    fig.legend(handles, [f'Cluster {i+1}' for i in range(n_clusters)],
+              loc='upper center', bbox_to_anchor=(0.5, 0.98), ncol=min(n_clusters, 5), fontsize=8)
 
-            # Create the bar chart
-            bars = axes[i].bar(range(len(sorted_data)), sorted_data[year], color=cmap(sorted_data['Cluster'] - 1))
-
-            # Customize the plot
-            axes[i].set_xlabel('Province', fontsize=6)
-            axes[i].set_ylabel('Emission Amount', fontsize=6)
-            axes[i].set_title(f'{year}', fontsize=6)
-            axes[i].set_xticks(range(len(sorted_data)))
-            axes[i].set_xticklabels(sorted_data['PROVINCE'], 
-                rotation=90, 
-                ha='center',  # Changed from 'right' to 'center'
-                va='top',
-                fontsize=4)
-            axes[i].tick_params(axis='y', labelsize=4)
-            axes[i].axhline(y=0, color='k', linestyle='-', linewidth=0.5)
-            plt.subplots_adjust(bottom=0.2)
-
-        # Remove unused subplots
-        for i in range(n_years, len(axes)):
-            fig.delaxes(axes[i])
-
-        # Add legend
-        handles = [plt.Rectangle((0,0),1,1, color=cmap(i)) for i in range(n_clusters)]
-        fig.legend(handles, [f'Cluster {i+1}' for i in range(n_clusters)],
-                  loc='upper center', bbox_to_anchor=(0.5, 0.98), ncol=min(n_clusters, 5), fontsize=5)
-
-        # Increase bottom margin and adjust spacing
-        plt.tight_layout()
-        plt.subplots_adjust(top=0.93, bottom=0.15, hspace=1, wspace=0.3)
-        
-        # Display in Streamlit
-        st.pyplot(fig)
-        plt.close()
+    # Adjust layout
+    plt.tight_layout()
+    plt.subplots_adjust(top=0.95)
+    
+    # Display in Streamlit
+    st.pyplot(fig)
+    plt.close()
 
 if uploaded_file is not None:
     try:
@@ -642,28 +710,7 @@ if df is not None and selected_sheets:
     else:
         tab_options = selected_sheets
 
-    # Add container with custom CSS for mobile responsiveness
-    with st.container():
-        st.markdown("""
-            <style>
-                /* Make tabs container responsive */
-                .stTabs [data-baseweb="tab-list"] {
-                    flex-wrap: wrap;
-                }
-                .stTabs [data-baseweb="tab"] {
-                    white-space: normal;
-                    min-width: 100px;
-                    flex-grow: 1;
-                    text-align: center;
-                    padding: 10px 5px;
-                }
-            </style>
-            """, unsafe_allow_html=True)
-        
-        df_selected_sheet_option = ui.tabs(
-            options=tab_options, 
-            default_value=selected_sheets[0]
-        )
+    df_selected_sheet_option = ui.tabs(options=tab_options, default_value=selected_sheets[0])
 
     if df_selected_sheet_option == "ALL SELECTED SECTORS":
         # Use combined dataframe
