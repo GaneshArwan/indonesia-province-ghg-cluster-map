@@ -8,6 +8,12 @@ st.write("""
 This application is part of a final project that aims to analyze and group Indonesian provinces based on 
 their Greenhouse Gas (GHG) emission profiles using the K-Means Clustering method.
 
+This application is designed for:
+- Environmental researchers and scientists studying GHG emissions patterns
+- Environmental NGOs and activists focusing on climate action
+- Students and academics interested in environmental data analysis
+- General public interested in understanding Indonesia's environmental impact
+
 Greenhouse Gases (GHG) are gases that trap heat in the atmosphere, contributing to the greenhouse effect and 
 global warming. The primary GHGs in Earth's atmosphere are water vapor, carbon dioxide (CO₂), methane (CH₄), 
 nitrous oxide (N₂O), and ozone (O₃).

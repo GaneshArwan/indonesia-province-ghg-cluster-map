@@ -10,6 +10,8 @@ import json
 import math
 from matplotlib.colors import ListedColormap
 import plotly.graph_objects as go
+import io
+import base64
 
 # Add this line to define numeric types
 numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
@@ -23,7 +25,7 @@ st.info("""
     1. The data must be in **xlsx** file format.
     2. Download the **template** file provided below.
     3. Data must follow the template format.
-    4. Do not modify the **ID** and **province names**.
+    4. The **province names** must match exactly with the template.
     5. Values must be in **Gigagram (Gg)** units because it's the unit used in Indonesia.
     6. Numbers must be written without dots for thousands (e.g., write 1000 not 1.000).
     7. Must use a comma or dot for decimal points if needed (e.g., 1000,5 or 1.000.5).
@@ -52,28 +54,61 @@ else:
 
 df = None  # Initialize df as None
 def preprocess_data(df):
-    # Assuming the first column is Id and the second is Province
-    numeric_columns = df.columns[2:]
+    # Sort columns: keep first column (Province) then sort the rest
+    first_col = df.columns[0]
+    year_cols = df.columns[1:]
+    sorted_year_cols = sorted(year_cols, key=lambda x: str(x))
+    df = df[[first_col] + sorted_year_cols]
+    
+    # Now proceed with preprocessing on sorted data
+    numeric_columns = df.columns[1:]  # Get numeric columns from sorted DataFrame
+    
+    # Clean up duplicate columns (handling .1, .2 etc.)
+    base_to_col = {}
+    for col in df.columns:
+        base_name = str(col).split('.')[0]
+        if base_name not in base_to_col:
+            base_to_col[base_name] = col
+    
+    # Keep only the columns that are the first occurrence of their base name
+    columns_to_keep = list(base_to_col.values())
+    df = df[columns_to_keep]
+    
+    # Get the range of years
+    year_cols = [str(col) for col in df.columns[1:]]  # Convert all to strings
+    try:
+        years = [int(year.split('.')[0]) for year in year_cols]  # Extract base year numbers
+        min_year = min(years)
+        max_year = max(years)
         
-    # Replace "0,00" and "0" with NaN in numeric columns
-    df[numeric_columns] = df[numeric_columns].replace({"0,00": np.nan, "0": np.nan})
+        # Create a complete range of years
+        all_years = list(range(min_year, max_year + 1))
+        
+        # Add missing years as new columns with zeros
+        for year in all_years:
+            if str(year) not in year_cols:
+                df[int(year)] = 0
+                
+        # Re-sort columns with Province first, then chronological years
+        year_cols = [col for col in df.columns if col != first_col]
+        sorted_year_cols = sorted(year_cols, key=lambda x: str(x))
+        df = df[[first_col] + sorted_year_cols]
+    except ValueError:
+        # Handle case where year conversion fails
+        st.warning("Could not process year columns. Some column names might not be valid years.")
+        
+    # Replace "0,00", "0", and "8888" with NaN in numeric columns
+    numeric_columns = df.columns[1:]  # Update numeric columns after adding missing years
+    df[numeric_columns] = df[numeric_columns].replace({"0,00": np.nan, "0": np.nan, "8888": np.nan})
 
-    #Change the values to float and replace , with .
+    # Change the values to float and replace , with .
     df[numeric_columns] = df[numeric_columns].replace(regex={',': '.'}).astype(float)
     
     # Fill missing values in numeric columns row-wise
-    df[numeric_columns] = df[numeric_columns].ffill(axis = 1).bfill(axis = 1)
+    df[numeric_columns] = df[numeric_columns].ffill(axis=1).bfill(axis=1)
     
     # Replace remaining NaN values with 0
     df[numeric_columns] = df[numeric_columns].fillna(0)
-
-    # Remove columns with empty or no headers
-    df = df.dropna(axis=1, how='all')  # Remove columns where all values are NaN
-    df = df.loc[:, df.columns != '']  # Remove columns with empty string as header
-    
-    # Convert object columns to string
-    for col in df.select_dtypes(include=['object']).columns:
-        df[col] = df[col].astype(str)
     
     return df
 
@@ -201,6 +236,12 @@ def display_province_map_2d(df=None, selected_columns=None):
         "MALUKU UTARA": "ID-MU",
         "PAPUA": "ID-PA",
         "PAPUA BARAT": "ID-PB",
+        "KEPULAUAN BANGKA BELITUNG": "ID-BB",
+        "JAKARTA": "ID-JK",
+        "YOGYAKARTA": "ID-YO",
+        "JOGJAKARTA": "ID-YO",
+        "JOGJA": "ID-YO",
+        "YOGYA": "ID-YO",
     }
 
     # Create legend data outside the map
@@ -224,13 +265,13 @@ def display_province_map_2d(df=None, selected_columns=None):
             sample_data = []
             
             for idx, row in df.iterrows():
-                province_name = row.iloc[1].upper().strip()
+                province_name = row.iloc[0].upper().strip()
                 province_id = province_codes.get(province_name, "")
                 
                 if province_id:
                     province_data = {
                         "id": province_id,
-                        "name": row.iloc[1],
+                        "name": row.iloc[0],
                         "value": 0,  # Default value
                         "cluster": int(row['Cluster'])  # Add cluster information
                     }
@@ -470,113 +511,34 @@ Cluster: {{cluster}}
 def combine_sheet_data(df_dict, selected_sheets, numerics):
     combined_df = pd.DataFrame()
     
+    # First, collect all unique numeric columns across all sheets
+    all_numeric_cols = set()
     for sheet in selected_sheets:
         sheet_df = df_dict[sheet]
-        # Keep province info from first two columns for the first sheet
-        if combined_df.empty:
-            combined_df = sheet_df.iloc[:, :2].copy()
-        
-        # Add numeric columns, summing if they already exist
+        numeric_cols = sheet_df.select_dtypes(include=numerics).columns
+        all_numeric_cols.update(numeric_cols)
+    
+    # Sort the numeric columns to ensure chronological order
+    all_numeric_cols = sorted(all_numeric_cols, key=lambda x: str(x))
+    
+    # Initialize combined_df with the first sheet's province column
+    first_sheet = df_dict[selected_sheets[0]]
+    combined_df = first_sheet.iloc[:, [0]].copy()  # Get province column
+    
+    # Initialize all numeric columns with zeros
+    for col in all_numeric_cols:
+        combined_df[col] = 0
+    
+    # Now add data from each sheet
+    for sheet in selected_sheets:
+        sheet_df = df_dict[sheet]
+        # For each numeric column in this sheet
         numeric_cols = sheet_df.select_dtypes(include=numerics).columns
         for col in numeric_cols:
             if col in combined_df.columns:
                 combined_df[col] += sheet_df[col]
-            else:
-                combined_df[col] = sheet_df[col]
     
     return combined_df
-
-# def display_cluster_bar_charts(df, years):
-#     st.header("Cluster Analysis by Year")
-#     st.write("""
-#     The charts below show the distribution of emissions across provinces for each year, 
-#     color-coded by their cluster assignments. This helps visualize how provinces in different 
-#     clusters compare in terms of their emission levels over time.
-#     """)
-#     # Get the number of unique clusters
-#     n_clusters = df['Cluster'].nunique()
-    
-#     # Create colors for the number of clusters we have
-#     # Using the same colors as in the map visualization
-#     cluster_colors = {
-#         1: '#FF9999',  # Light red
-#         2: '#99FF99',  # Light green
-#         3: '#9999FF',  # Light blue
-#         4: '#FFFF99',  # Light yellow
-#         5: '#FF99FF',  # Light purple
-#         6: '#99FFFF',  # Light cyan
-#         7: '#FFB366',  # Light orange
-#         8: '#B366FF',  # Light violet
-#         9: '#66FFB3',  # Light mint
-#         10: '#FF66B3'  # Light pink
-#     }
-    
-#     # Create color list based on number of clusters
-#     colors = [cluster_colors[i] for i in range(1, n_clusters + 1)]
-#     cmap = ListedColormap(colors)
-
-#     # Split years into groups of 8
-#     years_per_group = 8
-#     n_groups = math.ceil(len(years) / years_per_group)
-
-#     # A4 size in inches (11.69 x 8.27)
-#     a4_height_inch = 11.69
-#     a4_width_inch = 8.27
-#     margin_inch = 3 / 2.54
-
-#     # Calculate available space for the plot
-#     plot_width_inch = a4_width_inch - 2 * margin_inch
-#     plot_height_inch = a4_height_inch - 2 * margin_inch
-
-#     for group in range(n_groups):
-#         start_year = group * years_per_group
-#         end_year = min((group + 1) * years_per_group, len(years))
-#         group_years = years[start_year:end_year]
-
-#         n_years = len(group_years)
-#         n_cols = 2  # Number of columns in the subplot grid
-#         n_rows = math.ceil(n_years / n_cols)
-
-#         fig, axes = plt.subplots(n_rows, n_cols, figsize=(plot_width_inch, plot_height_inch), dpi=300)
-#         axes = axes.flatten()
-
-#         for i, year in enumerate(group_years):
-#             # Sort the data by cluster and then by emission value
-#             sorted_data = df.sort_values(['Cluster', year])
-
-#             # Create the bar chart
-#             bars = axes[i].bar(range(len(sorted_data)), sorted_data[year], color=cmap(sorted_data['Cluster'] - 1))
-
-#             # Customize the plot
-#             axes[i].set_xlabel('Province', fontsize=6)
-#             axes[i].set_ylabel('Emission Amount', fontsize=6)
-#             axes[i].set_title(f'{year}', fontsize=6)
-#             axes[i].set_xticks(range(len(sorted_data)))
-#             axes[i].set_xticklabels(sorted_data['PROVINCE'], 
-#                 rotation=90, 
-#                 ha='center',  # Changed from 'right' to 'center'
-#                 va='top',
-#                 fontsize=4)
-#             axes[i].tick_params(axis='y', labelsize=4)
-#             axes[i].axhline(y=0, color='k', linestyle='-', linewidth=0.5)
-#             plt.subplots_adjust(bottom=0.2)
-
-#         # Remove unused subplots
-#         for i in range(n_years, len(axes)):
-#             fig.delaxes(axes[i])
-
-#         # Add legend
-#         handles = [plt.Rectangle((0,0),1,1, color=cmap(i)) for i in range(n_clusters)]
-#         fig.legend(handles, [f'Cluster {i+1}' for i in range(n_clusters)],
-#                   loc='upper center', bbox_to_anchor=(0.5, 0.98), ncol=min(n_clusters, 5), fontsize=5)
-
-#         # Increase bottom margin and adjust spacing
-#         plt.tight_layout()
-#         plt.subplots_adjust(top=0.93, bottom=0.15, hspace=1, wspace=0.3)
-        
-#         # Display in Streamlit
-#         st.pyplot(fig)
-#         plt.close()
 
 def display_cluster_bar_charts(df, years):
     # Get the number of unique clusters
@@ -604,9 +566,11 @@ def display_cluster_bar_charts(df, years):
     n_cols = 2  # Number of columns in the subplot grid
     n_rows = math.ceil(n_years / n_cols)
 
-    # Create one large figure
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, 5*n_rows), dpi=300)
+    # Create one large figure with increased size
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(20, 7*n_rows), dpi=300)
     axes = axes.flatten()
+
+    plt.rcParams.update({'font.size': 12})  # Increase default font size
 
     for i, year in enumerate(years):
         # Sort the data by cluster and then by emission value
@@ -615,34 +579,72 @@ def display_cluster_bar_charts(df, years):
         # Create the bar chart
         bars = axes[i].bar(range(len(sorted_data)), sorted_data[year], color=cmap(sorted_data['Cluster'] - 1))
 
-        # Customize the plot
-        axes[i].set_xlabel('Province', fontsize=6)
-        axes[i].set_ylabel('Emission Amount', fontsize=6)
-        axes[i].set_title(f'{year}', fontsize=8)
+        # Customize the plot with larger fonts
+        axes[i].set_xlabel('Province', fontsize=14, fontweight='bold')
+        axes[i].set_ylabel('Emission Amount', fontsize=14, fontweight='bold')
+        axes[i].set_title(f'{year}', fontsize=16, fontweight='bold', pad=20)
         axes[i].set_xticks(range(len(sorted_data)))
         axes[i].set_xticklabels(sorted_data['PROVINCE'], 
             rotation=90, 
             ha='center',
             va='top',
-            fontsize=4)
-        axes[i].tick_params(axis='y', labelsize=4)
+            fontsize=10)
+        axes[i].tick_params(axis='y', labelsize=12)
         axes[i].axhline(y=0, color='k', linestyle='-', linewidth=0.5)
 
     # Remove unused subplots
     for i in range(n_years, len(axes)):
         fig.delaxes(axes[i])
 
-    # Add legend
+    # Add legend with larger font
     handles = [plt.Rectangle((0,0),1,1, color=cmap(i)) for i in range(n_clusters)]
     fig.legend(handles, [f'Cluster {i+1}' for i in range(n_clusters)],
-              loc='upper center', bbox_to_anchor=(0.5, 0.98), ncol=min(n_clusters, 5), fontsize=8)
+              loc='upper center', bbox_to_anchor=(0.5, 0.98), 
+              ncol=min(n_clusters, 5), 
+              fontsize=12,
+              title='Clusters',
+              title_fontsize=14)
 
-    # Adjust layout
+    # Adjust layout with reduced top margin and increased vertical spacing
     plt.tight_layout()
-    plt.subplots_adjust(top=0.95)
+    plt.subplots_adjust(top=0.95, hspace=0.8)  # Increased hspace from 0.4 to 0.8
+
+    # Create download section
+    st.write("### Download Options")
     
+    # Create two columns for download buttons
+    col1, col2 = st.columns(2)
+    
+    # Save figure as PNG
+    png_img = io.BytesIO()
+    fig.savefig(png_img, format='png', bbox_inches='tight', dpi=300)
+    png_img.seek(0)
+    
+    # Save figure as PDF
+    pdf_img = io.BytesIO()
+    fig.savefig(pdf_img, format='pdf', bbox_inches='tight')
+    pdf_img.seek(0)
+    
+    with col1:
+        st.download_button(
+            label="📊 Download PNG",
+            data=png_img,
+            file_name="bar_chart_analysis.png",
+            mime="image/png",
+            help="Download high-resolution PNG image"
+        )
+    
+    with col2:
+        st.download_button(
+            label="📄 Download PDF",
+            data=pdf_img,
+            file_name="bar_chart_analysis.pdf",
+            mime="application/pdf",
+            help="Download PDF version"
+        )
     # Display in Streamlit
     st.pyplot(fig)
+    
     plt.close()
 
 if uploaded_file is not None:
@@ -684,8 +686,8 @@ if uploaded_file is not None:
 
             # Combine data if more than one sheet is selected
             if len(selected_sheets) > 1:
-                combined_df = combine_sheet_data(df, selected_sheets, numerics)
                 st.subheader(f"Preview of All Selected Sectors")
+                combined_df = combine_sheet_data(df, selected_sheets, numerics)
                 with st.expander("Data Preview and Preprocessed"):
                     st.markdown("### Data preprocessed and combined")
                     display_data(combined_df)
