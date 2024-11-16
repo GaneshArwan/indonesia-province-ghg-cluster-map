@@ -178,12 +178,6 @@ def perform_clustering(df, columns_for_model):
     # Add cluster labels to the dataframe
     df['Cluster'] = y_kmeans + 1  # Adding 1 to make clusters 1-based instead of 0-based
     
-    # # Add data preview with selected columns and cluster
-    # with st.expander("Show Data of Province with Cluster"):
-    #     # preview_df = df[['PROVINCE', 'Cluster']]  # Select Province and Cluster columns
-    #     preview_df = df
-    #     st.dataframe(preview_df)
-    
     # Add a section for the map
     st.header("Indonesia Province Map Visualization")
     
