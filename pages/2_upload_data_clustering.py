@@ -608,9 +608,6 @@ def display_cluster_bar_charts(df, years):
     # Adjust layout with reduced top margin and increased vertical spacing
     plt.tight_layout()
     plt.subplots_adjust(top=0.95, hspace=0.8)  # Increased hspace from 0.4 to 0.8
-
-    # Create download section
-    st.write("### Download Options")
     
     # Create two columns for download buttons
     col1, col2 = st.columns(2)
