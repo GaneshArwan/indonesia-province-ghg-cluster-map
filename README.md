@@ -8,23 +8,44 @@ This app lets you explore Scikit-learn's K-Means clustering algorithm using Indo
 
 You can choose how many dimensions to use for clustering by selecting specific years of data, or include all years for a comprehensive analysis. The application visualizes the clustering results on an interactive map of Indonesia, helping identify patterns and similarities in emissions across different provinces.
 
-# Create and activate virtual environment
-```
-python -m venv venv
-```
-# On Unix/MacOS
-```
-source venv/bin/activate  # On Unix/MacOS
-```
-# On Windows
-```
-.\venv\Scripts\activate  # On Windows
+# Setup Instructions
+
+## Option 1: Using Virtual Environment (recommended)
+
+First, install virtualenv if you haven't already:
+```bash
+pip install virtualenv
 ```
 
-# Install dependencies
+Create and activate a virtual environment:
+```bash
+# Create virtual environment
+python -m venv venv
+
+# Activate virtual environment
+# On Unix/MacOS:
+source venv/bin/activate
+# On Windows:
+.\venv\Scripts\activate
 ```
+
+## Option 2: Direct Installation
+If you prefer not to use a virtual environment, you can install dependencies directly:
+
+```bash
 pip install -r requirements.txt
 ```
+
+# Running the Application
+
+After installing the dependencies, you can run the application using:
+```
+streamlit run app.py
+```
+
+The application will open in your default web browser. If it doesn't open automatically, you can access it at http://localhost:8501
+
+To stop the application, press Ctrl+C in the terminal.
 
 # Technical Implementation
 - K-Means Clustering for unsupervised learning
