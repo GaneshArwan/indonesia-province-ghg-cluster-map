@@ -12,7 +12,6 @@ from matplotlib.colors import ListedColormap
 import plotly.graph_objects as go
 import io
 import base64
-from sklearn.preprocessing import StandardScaler
 
 # Add this line to define numeric types
 numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
@@ -131,19 +130,14 @@ def check_nunique_missing(df):
     return df_check
 
 def perform_clustering(df, columns_for_model):
-    # Extract features for clustering
     X = df.loc[:, columns_for_model].values
-    
-    # Add StandardScaler
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
     
     max_clusters = 10
     silhouette_scores = []
     for i in range(2, max_clusters + 1):
         kmeans = KMeans(n_clusters=i, random_state=101)
-        cluster_labels = kmeans.fit_predict(X_scaled)  # Use scaled data
-        silhouette_avg = silhouette_score(X_scaled, cluster_labels)  # Use scaled data
+        cluster_labels = kmeans.fit_predict(X)  # Use scaled data
+        silhouette_avg = silhouette_score(X, cluster_labels)  # Use scaled data
         silhouette_scores.append(silhouette_avg)
     
     optimal_clusters = silhouette_scores.index(max(silhouette_scores)) + 2  # +2 because we start from 2 clusters
@@ -179,7 +173,7 @@ def perform_clustering(df, columns_for_model):
     
     num_clusters = st.sidebar.slider("Decide on the final number of clusters", 2, 10, optimal_clusters)
     kmeansmodel = KMeans(n_clusters=num_clusters, random_state=101)
-    y_kmeans = kmeansmodel.fit_predict(X_scaled)  # Use scaled data
+    y_kmeans = kmeansmodel.fit_predict(X)  # Use scaled data
     
     # Add cluster labels to the dataframe
     df['Cluster'] = y_kmeans + 1  # Adding 1 to make clusters 1-based instead of 0-based
@@ -212,8 +206,6 @@ def display_province_map_2d(df=None, selected_columns=None):
         "LAMPUNG": "ID-LA",
         "BANGKA BELITUNG": "ID-BB",
         "KEPULAUAN RIAU": "ID-KR",
-        "KEP. RIAU": "ID-KR",
-        "KEP RIAU": "ID-KR",
         "DKI JAKARTA": "ID-JK",
         "JAWA BARAT": "ID-JB",
         "JAWA TENGAH": "ID-JT",
@@ -239,8 +231,6 @@ def display_province_map_2d(df=None, selected_columns=None):
         "PAPUA": "ID-PA",
         "PAPUA BARAT": "ID-PB",
         "KEPULAUAN BANGKA BELITUNG": "ID-BB",
-        "KEP. BANGKA BELITUNG": "ID-BB",
-        "KEP BANGKA BELITUNG": "ID-BB",
         "JAKARTA": "ID-JK",
         "YOGYAKARTA": "ID-YO",
         "JOGJAKARTA": "ID-YO",
@@ -367,31 +357,6 @@ Cluster: {{cluster}}
                     font-weight: bold;
                     color: #555;
                 }
-                .map-legend {
-                    position: absolute;
-                    top: 20px;
-                    right: 20px;
-                    background: rgba(255, 255, 255, 0.9);
-                    padding: 10px;
-                    border-radius: 5px;
-                    border: 1px solid #ccc;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                    z-index: 1000;
-                }
-                .legend-item {
-                    display: flex;
-                    align-items: center;
-                    margin: 5px 0;
-                }
-                .legend-color {
-                    width: 20px;
-                    height: 20px;
-                    margin-right: 8px;
-                    border: 1px solid #666;
-                }
-                .legend-label {
-                    font-size: 12px;
-                }
             </style>
         </head>
         <body>
@@ -515,90 +480,6 @@ Cluster: {{cluster}}
 
                 chart.set("zoomControl", am5map.ZoomControl.new(root, {}));
                 
-                // Create legend container
-                var legendContainer = document.createElement("div");
-                legendContainer.className = "map-legend";
-                document.getElementById("chartdiv").appendChild(legendContainer);
-
-                // Create legend title
-                var legendTitle = document.createElement("div");
-                legendTitle.style.fontWeight = "bold";
-                legendTitle.style.marginBottom = "8px";
-                legendTitle.textContent = "Emission Levels";
-                legendContainer.appendChild(legendTitle);
-
-                // Calculate average values for each cluster
-                var clusterAverages = {};
-                ''' + json.dumps(sample_data) + '''.forEach(function(item) {
-                    if (!clusterAverages[item.cluster]) {
-                        clusterAverages[item.cluster] = {
-                            sum: 0,
-                            count: 0
-                        };
-                    }
-                    // Sum up all year values
-                    ''' + json.dumps(selected_columns) + '''.forEach(function(year) {
-                        clusterAverages[item.cluster].sum += item[year];
-                    });
-                    clusterAverages[item.cluster].count += 1;
-                });
-
-                // Calculate final averages and create sorted array
-                var sortedClusters = Object.keys(clusterAverages).map(function(cluster) {
-                    return {
-                        cluster: parseInt(cluster),
-                        average: clusterAverages[cluster].sum / clusterAverages[cluster].count
-                    };
-                }).sort(function(a, b) {
-                    return a.average - b.average;
-                });
-
-                // Create mapping of emission level to cluster
-                var clusterLabels = {};
-                var numClusters = sortedClusters.length;
-                
-                if (numClusters === 2) {
-                    clusterLabels[sortedClusters[0].cluster] = "Low";
-                    clusterLabels[sortedClusters[1].cluster] = "High";
-                } else if (numClusters === 3) {
-                    clusterLabels[sortedClusters[0].cluster] = "Low";
-                    clusterLabels[sortedClusters[1].cluster] = "Medium";
-                    clusterLabels[sortedClusters[2].cluster] = "High";
-                } else {
-                    sortedClusters.forEach(function(item, index) {
-                        var percentile = index / (numClusters - 1);
-                        if (percentile <= 0.2) {
-                            clusterLabels[item.cluster] = "Very Low";
-                        } else if (percentile <= 0.4) {
-                            clusterLabels[item.cluster] = "Low";
-                        } else if (percentile <= 0.6) {
-                            clusterLabels[item.cluster] = "Medium";
-                        } else if (percentile <= 0.8) {
-                            clusterLabels[item.cluster] = "High";
-                        } else {
-                            clusterLabels[item.cluster] = "Very High";
-                        }
-                    });
-                }
-
-                // Create legend items in order of emission levels
-                sortedClusters.forEach(function(item) {
-                    var legendItem = document.createElement("div");
-                    legendItem.className = "legend-item";
-                    
-                    var colorBox = document.createElement("div");
-                    colorBox.className = "legend-color";
-                    colorBox.style.backgroundColor = colors[item.cluster].toString();
-                    
-                    var label = document.createElement("span");
-                    label.className = "legend-label";
-                    label.textContent = clusterLabels[item.cluster];
-                    
-                    legendItem.appendChild(colorBox);
-                    legendItem.appendChild(label);
-                    legendContainer.appendChild(legendItem);
-                });
-
                 chart.appear(1000, 100);
             });
             </script>
@@ -848,7 +729,6 @@ if df is not None and selected_sheets:
         perform_clustering(working_df, columns_for_model)
         # Only show bar charts after clustering is done and Cluster column exists
         if 'Cluster' in working_df.columns:
-            # display_cluster_bar_charts_per_8_charts(working_df, columns_for_model)
             display_cluster_bar_charts(working_df, columns_for_model)
         else:
             st.warning("Please perform clustering first before viewing the bar charts")
